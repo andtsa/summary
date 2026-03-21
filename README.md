@@ -8,7 +8,7 @@ for specifying which files/folders to use or not use.
 
 "install" this with
 ```sh
-[todo]
+cargo install summarymd
 ```
 
 ## sample configuration
