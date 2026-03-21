@@ -6,6 +6,11 @@ for specifying which files/folders to use or not use.
 * Generate a template with `summary init summary.toml`,
 * Run with `summary run --source summary.toml -o summary.md`
 
+"install" this with
+```sh
+[todo]
+```
+
 ## sample configuration
 ```toml
 # Project name, printed at the top of the output file.

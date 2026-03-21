@@ -1,7 +1,14 @@
 [package]
-name = "summary"
-version = "0.1.0"
+name = "summarymd"
+version = "0.1.1"
 edition = "2024"
+description = "dump a codebase to a markdown file"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/andtsa/summary"
+homepage = "https://github.com/andtsa/summary"
+readme = "README.md"
+keywords = ["cli", "codebase", "codebase-to-text"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 anyhow = "1"
