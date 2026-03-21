@@ -1,20 +1,80 @@
 # project summary codebase summary:
 
 ## directory tree
-
 ```
 .
 ├── Cargo.lock
 ├── Cargo.toml
+├── LICENSE
+├── README.md
 ├── src
 │   └── main.rs
 ├── summary.md
 └── summary.toml
 
-2 directories, 5 files
+2 directories, 7 files
 ```
 
 ## files
+
+### README.md
+
+# Summary of a codebase
+A tool to dump the whole contents of a codebase to a file.
+Uses a declarative configuration TOML file 
+for specifying which files/folders to use or not use.
+
+* Generate a template with `summary init summary.toml`,
+* Run with `summary run --source summary.toml -o summary.md`
+
+## sample configuration
+```toml
+# Project name, printed at the top of the output file.
+name = "my-project"
+
+# The root directory of the project. All relative paths below are resolved
+# from here. Usually the directory that contains this config file.
+root = "."
+
+# Individual files to always include, relative to `root`.
+files = [
+    "README.md",
+    "Cargo.toml",
+]
+
+# Directories to include recursively, relative to `root`.
+# Every file inside (at any depth) is added to the search space.
+directories = [
+    "src",
+]
+
+# Glob patterns, relative to `root`.
+# Useful for targeting specific file types across many directories.
+globs = [
+    "docs/**/*.md",
+    "scripts/**/*.sh",
+]
+
+# Extension allowlist. Only files whose extension matches an entry here
+# will be written to the output. The leading dot is optional.
+# Leave the list empty ([]) to allow every extension.
+extensions = [
+    "rs",
+    "toml",
+    "md",
+    "sh",
+    "py",
+    "ts",
+    "js",
+]
+
+# Patterns to always exclude, even if matched by files/directories/globs above.
+exclude = [
+    "target/**",
+    "**/*.lock",
+    "**/*.snap",
+]
+```
 
 ### Cargo.toml
 
@@ -25,13 +85,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = "1.0.102"
+anyhow = "1"
 clap = { version = "4.6.0", features = ["derive"] }
 clio = { version = "0.3.5", features = ["clap-parse"] }
 glob = "0.3.3"
-serde = "1.0.228"
-serde_derive = "1.0.228"
-toml = "1.0.7"
+regex-lite = "0.1.9"
+serde = "1"
+serde_derive = "1"
+toml = "1"
 walkdir = "2.5.0"
 ```
 
@@ -39,18 +100,36 @@ walkdir = "2.5.0"
 
 ```rs
 //! print a codebase to a text file
-use std::io::Write;
 use std::path::PathBuf;
 use std::time::Instant;
+use std::{collections::BTreeSet, io::Write};
 
 use anyhow::ensure;
 use clap::{Parser, Subcommand};
 use clio::Output;
 use glob::glob;
+use regex_lite::Regex;
+use serde::Deserialize;
 use serde_derive::Deserialize;
 
+/// # Summary of a codebase
+/// A tool to dump the whole contents of a codebase to a file.
+/// Uses a declarative configuration TOML file
+/// for specifying which files/folders to use or not use.
+/// Generate a template with `$0 init summary.toml`,
+/// run with `$0 run --source summary.toml -o summary.md`
 #[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
+#[command(version)]
+#[command(
+    about = "this is a tool to dump the whole contents of a codebase to a file\n\n\
+* Generate a template with \x1b[1msummary init summary.toml\x1b[0m,\n\
+* Run with \x1b[1msummary run --source summary.toml -o summary.md\x1b[0m"
+)]
+#[command(long_about = r#"Summary of a codebase
+A tool to dump the whole contents of a codebase to a file.
+Uses a declarative configuration TOML file  for specifying which files/folders to use or not use.
+* Generate a template with `$0 init summary.toml`,
+* Run with `$0 run --source summary.toml -o summary.md`"#)]
 #[clap(name = "summary")]
 struct Args {
     #[command(subcommand)]
@@ -104,6 +183,34 @@ struct Config {
     /// exclude these globs even if they're matched by something else
     #[serde(default)]
     exclude: Vec<String>,
+    /// formatting options
+    #[serde(default)]
+    format_options: FormatOptions,
+}
+
+#[derive(Debug, Deserialize)]
+struct FormatOptions {
+    /// override defaults for specific file names or extensions
+    use_codeblocks: Vec<(Pattern, bool)>,
+}
+
+impl Default for FormatOptions {
+    fn default() -> Self {
+        FormatOptions {
+            use_codeblocks: vec![(Pattern(Regex::new(r#"README\.md$"#).unwrap()), false)],
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct Pattern(#[serde(deserialize_with = "deserialize_regex")] Regex);
+
+fn deserialize_regex<'de, D>(deserializer: D) -> Result<Regex, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let pattern = String::deserialize(deserializer)?;
+    Regex::new(&pattern).map_err(serde::de::Error::custom)
 }
 
 const TEMPLATE: &str = r#"# summary.toml — codebase summary configuration
@@ -197,7 +304,7 @@ fn cmd_run(source: PathBuf, mut output: Output) -> anyhow::Result<()> {
         .output()
     {
         Ok(tree_output) if tree_output.status.success() => {
-            writeln!(o, "## directory tree\n")?;
+            writeln!(o, "## directory tree")?;
             writeln!(o, "```")?;
             o.write_all(&tree_output.stdout)?;
             writeln!(o, "```\n")?;
@@ -209,7 +316,7 @@ fn cmd_run(source: PathBuf, mut output: Output) -> anyhow::Result<()> {
 
     // build the search space, deduplicating via a seen set
     let mut search_space: Vec<PathBuf> = Vec::new();
-    let mut seen: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
+    let mut seen: BTreeSet<PathBuf> = BTreeSet::new();
 
     let mut add = |path: PathBuf| {
         if let Ok(canonical) = path.canonicalize()
@@ -251,7 +358,7 @@ fn cmd_run(source: PathBuf, mut output: Output) -> anyhow::Result<()> {
     }
 
     // filter by extension
-    let extensions: std::collections::HashSet<String> = cfg
+    let extensions: BTreeSet<String> = cfg
         .extensions
         .iter()
         .map(|e| e.trim_start_matches('.').to_lowercase())
@@ -293,16 +400,28 @@ fn cmd_run(source: PathBuf, mut output: Output) -> anyhow::Result<()> {
         let rel = path.strip_prefix(&cfg.root).unwrap_or(path);
 
         let lang = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        let omit_cb = cfg
+            .format_options
+            .use_codeblocks
+            .iter()
+            .find(|(p, _)| p.0.is_match(&rel.display().to_string()))
+            .is_some_and(|(_, b)| !b);
 
         match std::fs::read_to_string(path) {
             Ok(contents) => {
                 writeln!(o, "### {}\n", rel.display())?;
-                writeln!(o, "```{lang}")?;
+                if !omit_cb {
+                    writeln!(o, "```{lang}")?;
+                }
                 o.write_all(contents.as_bytes())?;
                 if !contents.ends_with('\n') {
                     writeln!(o)?;
                 }
-                writeln!(o, "```\n")?;
+                if !omit_cb {
+                    writeln!(o, "```\n")?;
+                } else {
+                    writeln!(o)?;
+                }
                 n_files += 1;
             }
             Err(e) => {

@@ -1,7 +1,15 @@
-# summary.toml — codebase summary configuration
+# Summary of a codebase
+A tool to dump the whole contents of a codebase to a file.
+Uses a declarative configuration TOML file 
+for specifying which files/folders to use or not use.
 
+* Generate a template with `summary init summary.toml`,
+* Run with `summary run --source summary.toml -o summary.md`
+
+## sample configuration
+```toml
 # Project name, printed at the top of the output file.
-name = "summary"
+name = "my-project"
 
 # The root directory of the project. All relative paths below are resolved
 # from here. Usually the directory that contains this config file.
@@ -38,3 +46,11 @@ extensions = [
     "ts",
     "js",
 ]
+
+# Patterns to always exclude, even if matched by files/directories/globs above.
+exclude = [
+    "target/**",
+    "**/*.lock",
+    "**/*.snap",
+]
+```
