@@ -3,8 +3,8 @@ A tool to dump the whole contents of a codebase to a file.
 Uses a declarative configuration TOML file 
 for specifying which files/folders to use or not use.
 
-* Generate a template with `summary init summary.toml`,
-* Run with `summary run --source summary.toml -o summary.md`
+* Generate a template with `summarymd init`,
+* Run with `summarymd run --source summary.toml -o summary.md`
 
 "install" this with
 ```sh
